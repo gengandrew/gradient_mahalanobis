@@ -1,0 +1,10 @@
+.DS_Store
+/checkpoints/CIFAR-100/
+/checkpoints/CIFAR-10/
+/datasets/
+*/__pycache__/
+/output/
+/samples/
+/trained_models/
+/mahalanobis_hyperparams/
+__pycache__/

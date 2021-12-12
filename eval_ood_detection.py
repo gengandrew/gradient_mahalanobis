@@ -15,7 +15,7 @@ import torchvision.transforms as transforms
 from sklearn.linear_model import LogisticRegressionCV
 from utils import get_Mahalanobis_score, get_gradient_Mahalanobis_scores
 from find_mahalanobis_hyperparams import get_best_mahalanobis_hyperparams
-from find_gradient_mahalanbis import get_gradient_mahalanobis_hyperparameters
+from find_gradient_mahalanbis_hyperparams import get_gradient_mahalanobis_hyperparameters
 
 
 parser = argparse.ArgumentParser(description='Pytorch Detecting Out-of-distribution examples in neural networks')

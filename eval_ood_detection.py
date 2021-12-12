@@ -10,24 +10,23 @@ import models.resnet as rn
 import models.densenet as dn
 import models.wideresnet as wn
 import torch.nn.functional as F
-import utils.svhn_loader as svhn
 from torch.autograd import Variable
-from utils import get_Mahalanobis_score
 import torchvision.transforms as transforms
 from sklearn.linear_model import LogisticRegressionCV
-from gradient_mahalanbis_utils import get_gradient_Mahalanobis_scores
-from tune_gradient_mahalanbis import get_gradient_mahalanobis_hyperparameters
+from utils import get_Mahalanobis_score, get_gradient_Mahalanobis_scores
+from find_mahalanobis_hyperparams import get_best_mahalanobis_hyperparams
+from find_gradient_mahalanbis import get_gradient_mahalanobis_hyperparameters
 
-# python eval_ood_detection.py --name=vanilla --in-dataset=CIFAR-10 --model-arch=densenet --epochs=100 --method=gradient_mahalanobis
+
 parser = argparse.ArgumentParser(description='Pytorch Detecting Out-of-distribution examples in neural networks')
 parser.add_argument('--in-dataset', default="CIFAR-10", type=str, help='in-distribution dataset')
 parser.add_argument('--name', required=True, type=str, help='the name of the model trained')
-parser.add_argument('--model-arch', default='densenet', type=str, help='model architecture')
+parser.add_argument('--model-arch', default='resnet34', type=str, help='model architecture')
 parser.add_argument('--gpu', default = '0', type = str, help='gpu index')
 parser.add_argument('--method', default='gradient_mahalanobis', type=str, help='scoring function')
 parser.add_argument('--epochs', default=100, type=int, help='number of total epochs to run')
 parser.add_argument('-b', '--batch-size', default=50, type=int, help='mini-batch size')
-parser.add_argument('--base-dir', default='output/ood_scores', type=str, help='result directory')
+parser.add_argument('--base-dir', default='evaluations', type=str, help='result directory')
 
 parser.add_argument('--droprate', default=0.0, type=float, help='dropout probability (default: 0.0)')
 parser.add_argument('--layers', default=100, type=int, help='total number of layers (default: 100)')
@@ -87,6 +86,14 @@ def get_odin_score(inputs, model, method_args):
     return scores
 
 
+def get_energy_score(inputs, model, method_args, temper=1):
+    with torch.no_grad():
+        logits = model(inputs)
+        scores = temper * torch.logsumexp(logits / temper, dim=1)
+
+    return scores
+
+
 def get_mahalanobis_score(inputs, model, method_args):
     num_classes = method_args['num_classes']
     sample_mean = method_args['sample_mean']
@@ -129,15 +136,20 @@ def get_gradnorm_score(inputs, model, num_classes, temperature=1):
 
 
 def get_gradient_mahalanobis_score(inputs, model, method_args):
-    scores = get_gradient_Mahalanobis_scores(inputs, model, method_args['num_classes'], method_args['sample_mean'], method_args['precision'])
+    regressor = method_args['regressor']
+    gradient_Mahalanobis_scores = get_gradient_Mahalanobis_scores(inputs, model, method_args['num_classes'], method_args['sample_mean'], method_args['precision'])
+    scores = -regressor.predict_proba(gradient_Mahalanobis_scores)[:, 1]
+
     return scores
 
 
-def get_score(inputs, model, method, method_args, raw_score=False):
+def get_score(inputs, model, method, method_args):
     if method == "msp":
         scores = get_msp_score(inputs, model, method_args)
     elif method == "odin":
         scores = get_odin_score(inputs, model, method_args)
+    elif method == "energy":
+        scores = get_energy_score(inputs, model, method_args)
     elif method == "mahalanobis":
         scores = get_mahalanobis_score(inputs, model, method_args)
     elif method == "GradNorm":
@@ -167,10 +179,6 @@ def eval_ood_detector(base_dir, in_dataset, out_datasets, batch_size, method, me
         testset = torchvision.datasets.CIFAR100(root='../../GradNorm_OE/datasets/cifar100', train=False, download=True, transform=transform)
         testloaderIn = torch.utils.data.DataLoader(testset, batch_size=batch_size, shuffle=True, num_workers=2)
         num_classes = 100
-    elif in_dataset == "SVHN":
-        testset = svhn.SVHN('../../GradNorm_OE/datasets/svhn/', split='test', transform=transforms.ToTensor(), download=False)
-        testloaderIn = torch.utils.data.DataLoader(testset, batch_size=batch_size, shuffle=True, num_workers=2)
-        num_classes = 10
 
     method_args['num_classes'] = num_classes
 
@@ -185,18 +193,14 @@ def eval_ood_detector(base_dir, in_dataset, out_datasets, batch_size, method, me
     else:
         assert False, 'Not supported model arch: {}'.format(args.model_arch)
 
-    model = nn.DataParallel(model)
-
-    checkpoint = torch.load("./checkpoints/{in_dataset}/{name}/checkpoint_{epochs}.pth.tar".format(in_dataset=in_dataset, name=name, epochs=epochs))
-    # checkpoint = torch.load("./checkpoints/{in_dataset}/{name}/epoch_{epochs}.pth".format(in_dataset=in_dataset, name=name, epochs=epochs))
-
-    model.load_state_dict(checkpoint['state_dict'])
-    # model.load_state_dict(checkpoint)
+    checkpoint = torch.load("./trained_models/{in_dataset}/{name}/epoch_{epochs}.pth".format(in_dataset=in_dataset, name=name, epochs=epochs))
+    model.load_state_dict(checkpoint)
 
     model.eval()
     model.cuda()
 
     if method == "mahalanobis":
+        method_args = get_best_mahalanobis_hyperparams(model, name, in_dataset)
         temp_x = torch.rand(2,3,32,32)
         temp_x = Variable(temp_x).cuda()
         if isinstance(model, nn.DataParallel):
@@ -206,10 +210,13 @@ def eval_ood_detector(base_dir, in_dataset, out_datasets, batch_size, method, me
 
         num_output = len(temp_list)
         method_args['num_output'] = num_output
+        method_args['num_classes'] = num_classes
     elif method == 'gradient_mahalanobis':
-        sample_mean, precision = get_gradient_mahalanobis_hyperparameters(model, in_dataset)
+        sample_mean, precision, regressor = get_gradient_mahalanobis_hyperparameters(model, in_dataset, name)
         method_args['sample_mean'] = sample_mean
         method_args['precision'] = precision
+        method_args['num_classes'] = num_classes
+        method_args['regressor'] = regressor
 
     t0 = time.time()
 
@@ -253,12 +260,7 @@ def eval_ood_detector(base_dir, in_dataset, out_datasets, batch_size, method, me
         if not os.path.exists(out_save_dir):
             os.makedirs(out_save_dir)
 
-        if out_dataset == 'SVHN':
-            testsetout = svhn.SVHN('../../GradNorm_OE/datasets/ood_datasets/svhn/', split='test',
-                                  transform=transforms.ToTensor(), download=False)
-            testloaderOut = torch.utils.data.DataLoader(testsetout, batch_size=batch_size,
-                                             shuffle=True, num_workers=2)
-        elif out_dataset == 'dtd':
+        if out_dataset == 'dtd':
             testsetout = torchvision.datasets.ImageFolder(root="../../GradNorm_OE/datasets/ood_datasets/dtd/images",
                                         transform=transforms.Compose([transforms.Resize(32), transforms.CenterCrop(32), transforms.ToTensor()]))
             testloaderOut = torch.utils.data.DataLoader(testsetout, batch_size=batch_size, shuffle=True,
@@ -280,7 +282,7 @@ def eval_ood_detector(base_dir, in_dataset, out_datasets, batch_size, method, me
 
         N = len(testloaderOut.dataset)
         count = 0
-        for j, (inputs, target) in enumerate(testloaderIn):
+        for j, (inputs, target) in enumerate(testloaderOut):
             inputs = inputs.cuda()
 
             scores = get_score(inputs, model, method, method_args)
@@ -297,27 +299,17 @@ def eval_ood_detector(base_dir, in_dataset, out_datasets, batch_size, method, me
 
 if __name__ == '__main__':
     method_args = dict()
-    out_datasets = ['LSUN_resize', 'dtd']
-    # out_datasets = ['SVHN', 'LSUN_C', 'LSUN_resize', 'iSUN', 'dtd']
-    # out_datasets = ['SVHN', 'LSUN_C', 'LSUN_resize', 'iSUN', 'dtd', 'places365']
+    out_datasets = ['LSUN_resize', 'iSUN', 'dtd', 'places365']
 
     if args.method == 'msp':
+        eval_ood_detector(args.base_dir, args.in_dataset, out_datasets, args.batch_size, args.method, method_args, args.name, args.epochs)
+    elif args.method == 'energy':
         eval_ood_detector(args.base_dir, args.in_dataset, out_datasets, args.batch_size, args.method, method_args, args.name, args.epochs)
     elif args.method == 'GradNorm':
         eval_ood_detector(args.base_dir, args.in_dataset, out_datasets, args.batch_size, args.method, method_args, args.name, args.epochs)
     elif args.method == 'gradient_mahalanobis':
         eval_ood_detector(args.base_dir, args.in_dataset, out_datasets, args.batch_size, args.method, method_args, args.name, args.epochs)
     elif args.method == 'mahalanobis':
-        sample_mean, precision, lr_weights, lr_bias, magnitude = np.load('./output/mahalanobis_hyperparams/{in_dataset}/{name}/results.npy'.format(in_dataset=args.in_dataset, name=args.name), allow_pickle=True)
-        regressor = LogisticRegressionCV(cv=2).fit([[0,0,0,0],[0,0,0,0],[1,1,1,1],[1,1,1,1]], [0,0,1,1])
-        regressor.coef_ = lr_weights
-        regressor.intercept_ = lr_bias
-
-        method_args['sample_mean'] = sample_mean
-        method_args['precision'] = precision
-        method_args['magnitude'] = magnitude
-        method_args['regressor'] = regressor
-
         eval_ood_detector(args.base_dir, args.in_dataset, out_datasets, args.batch_size, args.method, method_args, args.name, args.epochs)
     elif args.method == "odin":
         method_args['temperature'] = 1000.0
@@ -329,6 +321,13 @@ if __name__ == '__main__':
             elif args.in_dataset == "SVHN":
                 method_args['magnitude'] = 0.0006
         elif args.model_arch == 'wideresnet':
+            if args.in_dataset == "CIFAR-10":
+                method_args['magnitude'] = 0.0006
+            elif args.in_dataset == "CIFAR-100":
+                method_args['magnitude'] = 0.0012
+            elif args.in_dataset == "SVHN":
+                method_args['magnitude'] = 0.0002
+        elif args.model_arch == 'resnet34':
             if args.in_dataset == "CIFAR-10":
                 method_args['magnitude'] = 0.0006
             elif args.in_dataset == "CIFAR-100":

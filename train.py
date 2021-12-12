@@ -18,15 +18,14 @@ import models.densenet as dn
 import models.wideresnet as wn
 import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
-from utils import TinyImages, ImageNet
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 
-
+# nohup python -u train.py --name=vanilla_resnet34 --model-arch=resnet34 --in-dataset=CIFAR-10 --gpu=$1 >> ./vanilla_resnet34.out
 parser = argparse.ArgumentParser(description='PyTorch CIFAR-10 & CIFAR-100 Training')
 parser.add_argument('--gpu', default='0', type=str, help='which gpu to use')
 parser.add_argument('--in-dataset', default="CIFAR-10", type=str, help='in-distribution dataset')
-parser.add_argument('--model-arch', default='resnet18', type=str, help='model architecture')
+parser.add_argument('--model-arch', default='resnet34', type=str, help='model architecture')
 parser.add_argument('--epochs', default=100, type=int, help='number of total epochs to run')
 parser.add_argument('-b', '--batch-size', default=128, type=int, help='batch size (default: 128)')
 parser.add_argument('--lr', '--learning-rate', default=0.1, type=float, help='initial learning rate')
@@ -35,7 +34,6 @@ parser.add_argument('--weight-decay', '--wd', default=5e-4, type=float, help='we
 parser.add_argument('--no-augment', dest='augment', action='store_false', help='whether to use standard augmentation (default: True)')
 parser.add_argument('--droprate', default=0.0, type=float, help='dropout probability (default: 0.0)')
 parser.add_argument('--name', required=True, type=str, help='name of experiment')
-parser.add_argument('--random_seed', default=1, type=int, help='The seed used for torch & numpy')
 
 parser.add_argument('--no-bottleneck', dest='bottleneck', action='store_false', help='To not use bottleneck block')
 parser.add_argument('--layers', default=100, type=int, help='total number of layers (default: 100)')
@@ -284,11 +282,6 @@ if __name__ == '__main__':
 
     # Setting up gpu parameters
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
-
-    # Setting up random seeds
-    torch.manual_seed(args.random_seed)
-    torch.cuda.manual_seed(args.random_seed)
-    np.random.seed(args.random_seed)
 
     # Running main training method
     main(args)

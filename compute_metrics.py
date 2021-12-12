@@ -6,7 +6,7 @@ parser = argparse.ArgumentParser(description='Pytorch Detecting Out-of-distribut
 parser.add_argument('--in-dataset', default="CIFAR-10", type=str, help='in-distribution dataset')
 parser.add_argument('--name', required=True, type=str, help='neural network name and training set')
 parser.add_argument('--method', default='msp', type=str, help='ood detection method')
-parser.add_argument('--base-dir', default='output/ood_scores', type=str, help='result directory')
+parser.add_argument('--base-dir', default='evaluations', type=str, help='result directory')
 parser.set_defaults(argument=True)
 args = parser.parse_args()
 
@@ -199,14 +199,10 @@ if __name__ == '__main__':
 
     if args.in_dataset == "CIFAR-10" or args.in_dataset == "CIFAR-100":
         # out_datasets = ['iSUN']
-        # out_datasets = ['LSUN_C']
         # out_datasets = ['LSUN_resize']
-        out_datasets = ['dtd']
         # out_datasets = ['places365']
-        # out_datasets = ['LSUN_C', 'LSUN_resize', 'iSUN', 'dtd', 'places365']
-
-        # out_datasets = ['SVHN']
-        # out_datasets = ['SVHN', 'LSUN_C', 'LSUN_resize', 'iSUN', 'dtd', 'places365']
+        # out_datasets = ['dtd']
+        out_datasets = ['LSUN_resize', 'iSUN', 'dtd', 'places365']
     elif args.in_dataset == "SVHN":
         out_datasets = ['LSUN_C', 'LSUN_resize', 'iSUN', 'dtd', 'places365', 'CIFAR-10']
 

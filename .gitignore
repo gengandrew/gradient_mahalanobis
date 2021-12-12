@@ -8,3 +8,5 @@
 /trained_models/
 /mahalanobis_hyperparams/
 __pycache__/
+eval.sh
+run.sh

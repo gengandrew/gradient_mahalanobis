@@ -3,7 +3,6 @@ import torch
 import numpy as np
 import torch.nn as nn
 import torch.nn.functional as F
-from utils import MahalanobisLinfPGDAttack
 
 from torch.autograd import Variable
 from scipy.spatial.distance import pdist, cdist, squareform

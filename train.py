@@ -21,7 +21,7 @@ import torch.backends.cudnn as cudnn
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 
-# nohup python -u train.py --name=vanilla_resnet34 --model-arch=resnet34 --in-dataset=CIFAR-10 --gpu=$1 >> ./vanilla_resnet34.out
+
 parser = argparse.ArgumentParser(description='PyTorch CIFAR-10 & CIFAR-100 Training')
 parser.add_argument('--gpu', default='0', type=str, help='which gpu to use')
 parser.add_argument('--in-dataset', default="CIFAR-10", type=str, help='in-distribution dataset')

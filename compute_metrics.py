@@ -1,6 +1,6 @@
-from __future__ import print_function
-import argparse
 import numpy as np
+import argparse
+
 
 parser = argparse.ArgumentParser(description='Pytorch Detecting Out-of-distribution examples in neural networks')
 parser.add_argument('--in-dataset', default="CIFAR-10", type=str, help='in-distribution dataset')
@@ -12,7 +12,8 @@ args = parser.parse_args()
 
 np.random.seed(1)
 
-def cal_metric(known, novel, method):
+
+def calculate_metrics(known, novel, method):
     tp, fp, fpr_at_tpr95 = get_curve(known, novel, method)
     results = dict()
 
@@ -47,6 +48,7 @@ def cal_metric(known, novel, method):
     results[mtype] = np.trapz(pout[pout_ind], 1.-fpr[pout_ind])
 
     return results
+
 
 def get_curve(known, novel, method):
     tp, fp = dict(), dict()
@@ -103,6 +105,7 @@ def get_curve(known, novel, method):
 
     return tp, fp, fpr_at_tpr95
 
+
 def print_results(results, in_dataset, out_dataset, name, method):
     mtypes = ['FPR', 'DTERR', 'AUROC', 'AUIN', 'AUOUT']
 
@@ -121,6 +124,7 @@ def print_results(results, in_dataset, out_dataset, name, method):
     print(' {val:6.2f}\n'.format(val=100.*results['AUOUT']), end='')
     print('')
 
+
 def compute_average_results(all_results):
     mtypes = ['FPR', 'DTERR', 'AUROC', 'AUIN', 'AUOUT']
     avg_results = dict()
@@ -137,12 +141,11 @@ def compute_average_results(all_results):
 
     return avg_results
 
-def compute_traditional_ood(base_dir, in_dataset, out_datasets, method, name):
-    print('Natural OOD')
-    print('nat_in vs. nat_out')
+
+def compute_ood_performance(base_dir, in_dataset, out_datasets, method, name):
+    print('OOD Detection Performance')
 
     known = np.loadtxt('{base_dir}/{in_dataset}/{method}/{name}/nat/in_scores.txt'.format(base_dir=base_dir, in_dataset=in_dataset, method=method, name=name), delimiter='\n')
-
     known_sorted = np.sort(known)
     num_k = known.shape[0]
 
@@ -152,26 +155,19 @@ def compute_traditional_ood(base_dir, in_dataset, out_datasets, method, name):
         threshold = known_sorted[round(0.05 * num_k)]
 
     all_results = []
-
     total = 0.0
-
     for out_dataset in out_datasets:
         novel = np.loadtxt('{base_dir}/{in_dataset}/{method}/{name}/nat/{out_dataset}/out_scores.txt'.format(base_dir=base_dir, in_dataset=in_dataset, method=method, name=name, out_dataset=out_dataset), delimiter='\n')
-
         total += novel.shape[0]
-
-        results = cal_metric(known, novel, method)
-
+        results = calculate_metrics(known, novel, method)
         all_results.append(results)
 
     avg_results = compute_average_results(all_results)
-
     print_results(avg_results, in_dataset, "All", name, method)
-
     return
 
-def compute_in(base_dir, in_dataset, method, name):
 
+def compute_in_performance(base_dir, in_dataset, method, name):
     known_nat = np.loadtxt('{base_dir}/{in_dataset}/{method}/{name}/nat/in_scores.txt'.format(base_dir=base_dir, in_dataset=in_dataset, method=method, name=name), delimiter='\n')
     known_nat_sorted = np.sort(known_nat)
     num_k = known_nat.shape[0]
@@ -182,7 +178,6 @@ def compute_in(base_dir, in_dataset, method, name):
         threshold = known_nat_sorted[round(0.05 * num_k)]
 
     known_nat_label = np.loadtxt('{base_dir}/{in_dataset}/{method}/{name}/nat/in_labels.txt'.format(base_dir=base_dir, in_dataset=in_dataset, method=method, name=name))
-
     nat_in_cond = (known_nat>threshold).astype(np.float32)
     nat_correct = (known_nat_label[:,0] == known_nat_label[:,1]).astype(np.float32)
     known_nat_acc = np.mean(nat_correct)
@@ -191,7 +186,6 @@ def compute_in(base_dir, in_dataset, method, name):
 
     print('In-distribution performance:')
     print('FNR: {fnr:6.2f}, Acc: {acc:6.2f}, End-to-end Acc: {eteacc:6.2f}'.format(fnr=known_nat_fnr*100,acc=known_nat_acc*100,eteacc=known_nat_eteacc*100))
-
     return
 
 
@@ -206,5 +200,5 @@ if __name__ == '__main__':
     elif args.in_dataset == "SVHN":
         out_datasets = ['LSUN_C', 'LSUN_resize', 'iSUN', 'dtd', 'places365', 'CIFAR-10']
 
-    compute_traditional_ood(args.base_dir, args.in_dataset, out_datasets, args.method, args.name)
-    compute_in(args.base_dir, args.in_dataset, args.method, args.name)
+    compute_ood_performance(args.base_dir, args.in_dataset, out_datasets, args.method, args.name)
+    compute_in_performance(args.base_dir, args.in_dataset, args.method, args.name)

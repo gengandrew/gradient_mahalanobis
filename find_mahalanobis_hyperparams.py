@@ -332,7 +332,6 @@ def tune_mahalanobis_hyperparams(model, name, in_dataset, batch_size=10):
         f1 = open(os.path.join(save_dir, "confidence_mahalanobis_In.txt"), 'w')
         f2 = open(os.path.join(save_dir, "confidence_mahalanobis_Out.txt"), 'w')
 
-        ########################################In-distribution###########################################
         print("Processing in-distribution images")
 
         count = 0
@@ -351,7 +350,6 @@ def tune_mahalanobis_hyperparams(model, name, in_dataset, batch_size=10):
             count += batch_size
             t0 = time.time()
 
-        ###################################Out-of-Distributions#####################################
         t0 = time.time()
         print("Processing out-of-distribution images")
         count = 0
@@ -396,7 +394,6 @@ def get_best_mahalanobis_hyperparams(model, name, in_dataset, batch_size=10, ran
     np.random.seed(random_seed)
 
     sample_mean, precision, best_regressor, best_magnitude = tune_mahalanobis_hyperparams(model, name, in_dataset, batch_size)
-    print('saving results...')
     save_dir = os.path.join('./trained_models/{in_dataset}/{name}/mahalanobis_hyperparams/'.format(in_dataset=in_dataset, name=name))
 
     if not os.path.exists(save_dir):

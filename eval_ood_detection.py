@@ -108,33 +108,6 @@ def get_mahalanobis_score(inputs, model, method_args):
     return scores
 
 
-def get_gradnorm_score(inputs, model, num_classes, temperature=1):
-    scores = []
-    for input in inputs:
-        input = input.unsqueeze(0)
-        uniform_target = torch.ones((input.shape[0], num_classes)).cuda()
-
-        # Model forward with temperature scaling
-        model.zero_grad()
-        outputs = model(input)
-        outputs = outputs / temperature
-
-        # Back propagation for gradient
-        logsoftmax = torch.nn.LogSoftmax(dim=-1).cuda()
-        loss = torch.mean(torch.sum(-uniform_target * logsoftmax(outputs), dim=-1))
-        loss.backward()
-
-        # Calculate the GradNorm of model
-        if isinstance(model, nn.DataParallel):
-            score = torch.sum(torch.abs(model.module.head.weight.grad.data)).cpu().item()
-        else:
-            score = torch.sum(torch.abs(model.head.weight.grad.data)).cpu().item()
-
-        scores.append(score)
-    
-    return scores
-
-
 def get_gradient_mahalanobis_score(inputs, model, method_args):
     regressor = method_args['regressor']
     gradient_Mahalanobis_scores = get_gradient_Mahalanobis_scores(inputs, model, method_args['num_classes'], method_args['sample_mean'], method_args['precision'])
@@ -152,8 +125,6 @@ def get_score(inputs, model, method, method_args):
         scores = get_energy_score(inputs, model, method_args)
     elif method == "mahalanobis":
         scores = get_mahalanobis_score(inputs, model, method_args)
-    elif method == "GradNorm":
-        scores = get_gradnorm_score(inputs, model, method_args['num_classes'])
     elif method == 'gradient_mahalanobis':
         scores = get_gradient_mahalanobis_score(inputs, model, method_args)
 
@@ -223,7 +194,6 @@ def eval_ood_detector(base_dir, in_dataset, out_datasets, batch_size, method, me
     f1 = open(os.path.join(in_save_dir, "in_scores.txt"), 'w')
     g1 = open(os.path.join(in_save_dir, "in_labels.txt"), 'w')
 
-    ########################################In-distribution###########################################
     print("Processing in-distribution images")
     N = len(testloaderIn.dataset)
     count = 0
@@ -276,7 +246,6 @@ def eval_ood_detector(base_dir, in_dataset, out_datasets, batch_size, method, me
             testloaderOut = torch.utils.data.DataLoader(testsetout, batch_size=batch_size,
                                              shuffle=True, num_workers=2)
 
-        ###################################Out-of-Distributions#####################################
         t0 = time.time()
         print("Processing out-of-distribution images")
 
@@ -304,8 +273,6 @@ if __name__ == '__main__':
     if args.method == 'msp':
         eval_ood_detector(args.base_dir, args.in_dataset, out_datasets, args.batch_size, args.method, method_args, args.name, args.epochs)
     elif args.method == 'energy':
-        eval_ood_detector(args.base_dir, args.in_dataset, out_datasets, args.batch_size, args.method, method_args, args.name, args.epochs)
-    elif args.method == 'GradNorm':
         eval_ood_detector(args.base_dir, args.in_dataset, out_datasets, args.batch_size, args.method, method_args, args.name, args.epochs)
     elif args.method == 'gradient_mahalanobis':
         eval_ood_detector(args.base_dir, args.in_dataset, out_datasets, args.batch_size, args.method, method_args, args.name, args.epochs)

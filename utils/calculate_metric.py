@@ -1,16 +1,5 @@
-from __future__ import print_function
-import torch
-from torch.autograd import Variable
-import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
-import torch.optim as optim
-import torchvision
-import os
-import torchvision.transforms as transforms
-import numpy as np
-import time
-from scipy import misc
+
 
 def get_curve(dir_name, stypes = ['MSP', 'ODIN']):
     tp, fp = dict(), dict()
@@ -54,6 +43,7 @@ def get_curve(dir_name, stypes = ['MSP', 'ODIN']):
         fpr_at_tpr95[stype] = np.sum(novel > threshold) / float(num_n)
 
     return tp, fp, fpr_at_tpr95
+
 
 def metric(dir_name, stypes = ['MSP', 'ODIN'], verbose=False):
     tp, fp, fpr_at_tpr95 = get_curve(dir_name, stypes)

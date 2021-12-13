@@ -1,20 +1,12 @@
-from __future__ import print_function
 import torch
 import numpy as np
 import torch.nn as nn
+import sklearn.covariance
 import torch.nn.functional as F
-
 from torch.autograd import Variable
-from scipy.spatial.distance import pdist, cdist, squareform
+
 
 def sample_estimator(model, num_classes, feature_list, train_loader):
-    """
-    compute sample mean and precision (inverse of covariance)
-    return: sample_class_mean: list of class mean
-             precision: list of precisions
-    """
-    import sklearn.covariance
-
     model.eval()
     group_lasso = sklearn.covariance.EmpiricalCovariance(assume_centered=False)
     correct, total = 0, 0
@@ -30,7 +22,6 @@ def sample_estimator(model, num_classes, feature_list, train_loader):
 
     for data, target in train_loader:
         total += data.size(0)
-        # data = data.cuda()
         data = Variable(data)
         data = data.cuda()
         if isinstance(model, nn.DataParallel):
@@ -92,8 +83,8 @@ def sample_estimator(model, num_classes, feature_list, train_loader):
 
     return sample_class_mean, precision
 
-def get_Mahalanobis_score(inputs, model, num_classes, sample_mean, precision, num_output, magnitude):
 
+def get_Mahalanobis_score(inputs, model, num_classes, sample_mean, precision, num_output, magnitude):
     for layer_index in range(num_output):
         data = Variable(inputs, requires_grad = True)
         data = data.cuda()
